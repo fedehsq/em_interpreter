@@ -212,7 +212,7 @@ let f = Fun("f", Plus(Var "y", Var "z"));; (* val f : exp =  Fun("f", Plus(Var "
 let f = eval(Fun("f", Plus(Var "y", Var "z"))) env acl;;
 (* val f : value = Func ("f", Plus(Var "y", Var "z"), [("x", Int 50)]*)
 
-let g = Fun("f", Plus(Var "x", Var "x"));; (* val f : exp =  Fun("f", Plus(Var "y", Var "z")) *)
+let g = Fun("f", Plus(Var "p1", Var "2"));; (* val f : exp =  Fun("f", Plus(Var "y", Var "z")) *)
 let f_call = eval(Call g) env acl;; (* Exception: Failure "This function can't be executed" *)
 
 (* add f to ACL *)
