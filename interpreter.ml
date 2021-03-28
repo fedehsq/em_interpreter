@@ -4,7 +4,7 @@
 type ide = string;;
 
 (* Acl to check if can do op *)
-type acl = (string)list
+type acl = (string)list;;
 
 (* languages value *)
 type exp = 
@@ -12,7 +12,8 @@ type exp =
   | Eint of int
   | Ebool of bool
   | Estring of string
-  | EitemList of exp * exp (* element and something other or None *)
+  | Elist of exp (* Eitem or None*)
+  | Eitem of exp * exp (* element and something other or None *)
   | Var of ide
   | Plus of exp * exp (* + of Int * Int*)
   | Minus of exp * exp (* - of Int * Int*)
@@ -30,15 +31,17 @@ type exp =
 
   (* The following constructor indicates the Execution Monitor: 
   This is a local policy, its effected is 'inline' not global like Acl.
-  The 3rd parameter 'acl' is the NEW LOCAL POLICY THAT COULD BE EXTEND THE GLOBAL ONE!
-  Em monitor takes only a piece of code indicated by last operator (exp) WITH THE NEW SECURITY POLICY
-  INDICATES BY 'acl'.
+  The 3rd parameter 'acl' is the NEW LOCAL POLICY THAT COULD BE 
+  EXTEND THE GLOBAL ONE!
+  Em monitor takes only a piece of code indicated by last operator (exp)
+  WITH THE NEW SECURITY POLICYnINDICATES BY 'acl'.
   It permits to give to variable 'ide' the value of 2nd operator (exp). *)
-  | LetInEm of ide * exp * acl * exp (* variable - value - new acl - expr to check by em *) 
+  | LetInEm of ide * exp * acl * exp 
+  (* variable, value, new acl, expr to check by em *) 
 
   (* Fun is anonymous => it hasn't a name! 'ide' is the formal parameter!
-  i.e f(x) = x + 1  => x is the formal parameter, x + 1 is the body*)
-  | Fun of ide * exp  (* formal parameter with function body  Plus | Minus | Mul | Div *)
+  i.e f(x) = x + 1  => x is the formal parameter, x + 1 is the bodyn*)
+  | Fun of ide * exp  (* formal parameter with function body *)
   | Call of exp * exp;; (* Fun with acutal parameter *)
 
 (* environment is a couple list of ide with their value *)
@@ -49,7 +52,8 @@ type value =
   | Int of int
   | Bool of bool
   | String of string
-  | ItemList of value * value
+  | List of value (* List(Item(Eint 5, None)) *)
+  | Item of value * value (* Item(Eint 5, None)) => List item or tuple!*)
   | Func of string * exp * value env;; (* formal param, body, env *)
 
 (* ---- DECLARATION OF FUNCTIONS ---- *)
@@ -114,11 +118,11 @@ let calculator (op: string) (x: value) (y: value) (acl: acl): value =
     | ("==", Bool x, Bool y) -> Bool (x = y)
     | ("==", String x, String y) -> Bool (x = y)
     | ("^", String x, String y) -> String (x ^ y)
-    | ("::", _x, ItemList (y, z)) -> (* check if x will be inserted as head *)
+    | ("::", _x, Item(y, z)) -> (* check if x will be inserted as head *)
       begin match x with
-      | ItemList _ -> failwith("Not a :: operation!")
+      | Item _ -> failwith("Not a :: operation!")
       | None -> failwith("Not a :: operation!")
-      | _x -> ItemList(x, ItemList (y, z))
+      | _x -> Item(x, Item (y, z))
     end
     | (_, _, _) -> failwith("Not yet implemented")
   else
@@ -131,10 +135,16 @@ let rec eval (exp: exp) (env: 'v env) (acl: acl): value = match exp with
   | Eint x -> Int x
   | Ebool b -> Bool b
   | Estring s -> String s
-  | EitemList(x, y) -> (* check if 2nd elem is ItemList or Enone!*)
+  | Elist l ->
+    begin match eval l env acl with
+    | Item(x, y) -> List(Item(x, y))
+    | None -> List(None)
+    | _ -> failwith("Wrong declaration list")
+    end
+  | Eitem(x, y) -> (* check if 2nd elem is Item or Enone!*)
     begin match y with 
-    | Enone -> ItemList(eval x env acl, eval y env acl)
-    | EitemList(_, _) -> ItemList(eval x env acl, eval y env acl)
+    | Enone -> Item(eval x env acl, eval y env acl)
+    | Eitem(_, _) -> Item(eval x env acl, eval y env acl)
     | _ -> failwith("Wrong declarations")
     end
   | Var x -> lookup env x
@@ -272,7 +282,13 @@ eval (IfThenElse(Greater(Var "x", Eint 5), Eint 10, Eint 20)) env (">"::acl);;
 (* value = Int 10 *)
 
 eval (Plus(Eint 5, Plus(Eint 10, Eint 10))) env acl;;
+(* value = Int 25 *)
 
-let l = Cons(Plus(Eint 5, Eint 5), EitemList(Eint 10, EitemList(Eint 5, Enone)));;
+let t = Cons(Plus(Eint 5, Eint 5), Eitem(Eint 10, Eitem(Eint 5, Enone)));;
+eval t env ["+"; "::"];; 
+(* value = Item (Int 10, Item (Int 10, Item (int 5, None))) => THIS IS A TUPLE! *)
+
+let l = Elist(Cons(Plus(Var "x", Eint 15), Eitem(Eint 10, Eitem(Eint 5, Enone))));;
 eval l env ["+"; "::"];; 
-(* value = ItemList(Int 10, ItemList(Int 10, ItemList (int 5, None))) *)
+(* value = List (Item (Int 25, Item (Int 10, Item (Int 5, None))) =>
+ THIS IS A LIST! *)
